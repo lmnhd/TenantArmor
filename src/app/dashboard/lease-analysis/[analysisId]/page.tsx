@@ -40,8 +40,8 @@ const mockAnalysisData: LeaseAnalysis = {
   ],
 };
 
-export default async function LeaseAnalysisResultPage(props: { params: { analysisId: string } }) {
-  const { analysisId } = props.params;
+export default async function LeaseAnalysisResultPage(props: { params: Promise<{ analysisId: string }> }) {
+  const { analysisId } = await props.params;
   // In a real app, this would fetch the analysis data from the API using the analysisId
   const analysis = mockAnalysisData;
 
