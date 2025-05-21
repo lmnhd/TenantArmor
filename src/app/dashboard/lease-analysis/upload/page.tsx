@@ -6,13 +6,18 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { UploadCloud, FileText, AlertCircle } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from 'next/navigation';
 
 export default function UploadLeasePage() {
   const [file, setFile] = useState<File | null>(null);
+  const [userSelectedState, setUserSelectedState] = useState<string>("");
   const [isConsentChecked, setIsConsentChecked] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const router = useRouter();
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     accept: { 'application/pdf': ['.pdf'] },
@@ -27,22 +32,47 @@ export default function UploadLeasePage() {
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!file || !isConsentChecked) {
+    if (!file || !isConsentChecked || !userSelectedState) {
+      if (!userSelectedState) setUploadError("Please specify the state/jurisdiction for the lease.");
+      else if (!file) setUploadError("Please select a file to upload.");
+      else if (!isConsentChecked) setUploadError("Please agree to the terms and privacy policy.");
       return;
     }
     
+    setUploadError(null);
     setIsUploading(true);
     
-    // In a real app, this would be replaced with an actual API call
-    // to upload the file and process it
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('userSelectedState', userSelectedState);
+
     try {
-      // Simulate upload process
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      const response = await fetch('/api/lease-upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Upload failed with status: ${response.status}`);
+      }
+
+      const result = await response.json();
       
-      // Simulate redirect to analysis page
-      window.location.href = '/dashboard/lease-analysis/analysis1';
+      // Assuming the API returns an analysisId
+      if (result.analysisId) {
+        router.push(`/dashboard/lease-analysis/${result.analysisId}`);
+      } else {
+        // Fallback or if analysis ID is not immediately available and polling is needed from results page
+        // For now, let's assume direct navigation or handle specific cases as requirements evolve.
+        console.warn('Analysis ID not found in response, redirecting to general history or a pending page.');
+        // router.push('/dashboard/lease-analysis'); // Or a page showing pending analysis
+        // For now, if no analysisId, treat as error for simplicity
+        throw new Error('Analysis ID not returned from the API.');
+      }
     } catch (error) {
       console.error('Upload error:', error);
+      setUploadError(error instanceof Error ? error.message : 'An unknown error occurred during upload.');
     } finally {
       setIsUploading(false);
     }
@@ -97,6 +127,24 @@ export default function UploadLeasePage() {
             </div>
           </div>
 
+          <div>
+            <Label htmlFor="state-jurisdiction" className="text-base">
+              State / Jurisdiction of Lease
+            </Label>
+            <Input 
+              id="state-jurisdiction"
+              type="text"
+              value={userSelectedState}
+              onChange={(e) => setUserSelectedState(e.target.value)}
+              placeholder="E.g., California, New York"
+              className="mt-2"
+              required
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              Specify the state or jurisdiction the lease agreement pertains to. This helps tailor the analysis.
+            </p>
+          </div>
+
           <div className="flex gap-4 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
             <AlertCircle className="h-5 w-5 text-amber-500 flex-shrink-0 mt-0.5" />
             <div className="text-sm">
@@ -131,9 +179,16 @@ export default function UploadLeasePage() {
             </div>
           </div>
 
+          {uploadError && (
+            <div className="p-3 bg-red-100 dark:bg-red-900/30 border border-red-300 dark:border-red-700 rounded-md text-sm text-red-700 dark:text-red-300 flex items-center space-x-2">
+              <AlertCircle className="h-4 w-4 flex-shrink-0" />
+              <span>{uploadError}</span>
+            </div>
+          )}
+
           <Button 
             type="submit" 
-            disabled={!file || !isConsentChecked || isUploading}
+            disabled={!file || !isConsentChecked || !userSelectedState || isUploading}
             className="w-full"
           >
             {isUploading ? "Processing..." : "Start Analysis"}
