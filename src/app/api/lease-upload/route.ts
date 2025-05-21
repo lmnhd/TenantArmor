@@ -97,7 +97,6 @@ export async function POST(request: Request) {
 
     const analysisId = uuidv4();
     const originalFileName = file.name;
-    const fileExtension = originalFileName.split('.').pop() || 'pdf';
     const s3Key = `leases/${analysisId}/${originalFileName}`; // Example S3 key structure
 
     // Convert file to buffer for S3 upload

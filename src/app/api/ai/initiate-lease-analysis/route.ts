@@ -42,6 +42,41 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
+// --- TypeScript Interfaces for AI Schemas ---
+interface Issue {
+  description: string;
+  severity: "High" | "Medium" | "Low";
+  recommendation: string;
+}
+
+interface Clause {
+  title: string;
+  text: string;
+  issues: Issue[];
+}
+
+interface InitialAnalysisResults {
+  summary: string;
+  overallSeverity: "High" | "Medium" | "Low";
+  clauses: Clause[];
+}
+
+interface NextStep {
+  step: string;
+  importance: "High" | "Medium" | "Consider";
+  details?: string; // Optional property
+}
+
+interface ActionableInsightsData {
+  actionableInsights: {
+    overallRecommendation: string;
+    nextSteps: NextStep[];
+  };
+}
+
+// Combined type for final results, if needed, can also be defined
+// interface FinalAnalysisResults extends InitialAnalysisResults, ActionableInsightsData {}
+
 // --- Schema for the first AI call (Initial Analysis) ---
 const initialAnalysisJsonSchema = {
   type: "object",
@@ -176,7 +211,7 @@ export async function POST(request: Request) {
     } catch (dbError) { console.error('Error retrieving context from DDB:', dbError); }
 
     // === PHASE 1: Initial Lease Analysis ===
-    let initialAnalysisResults: any;
+    let initialAnalysisResults: InitialAnalysisResults;
     try {
       const systemMessageInitial = `You are a legal assistant specializing in ${userSelectedState} lease agreements. Analyze the lease text. Respond ONLY with a valid JSON object adhering to this schema: ${JSON.stringify(initialAnalysisJsonSchema, null, 2)}`;
       const userMessageInitial = `Lease text: ${extractedText}`;
@@ -208,14 +243,14 @@ export async function POST(request: Request) {
     }
 
     // === PHASE 2: Generate Actionable Insights ===
-    let actionableInsightsData: any;
+    let actionableInsightsData: ActionableInsightsData;
     try {
       // Prepare a concise summary of initial findings for the second prompt
       let contextForInsights = `Summary: ${initialAnalysisResults.summary}. Overall Severity: ${initialAnalysisResults.overallSeverity}.`;
       const highSeverityIssues = initialAnalysisResults.clauses
-        .flatMap((c: any) => c.issues)
-        .filter((i: any) => i.severity === 'High')
-        .map((i: any) => i.description);
+        .flatMap((c: Clause) => c.issues)
+        .filter((i: Issue) => i.severity === 'High')
+        .map((i: Issue) => i.description);
       if (highSeverityIssues.length > 0) {
         contextForInsights += ` Key high-severity issues include: ${highSeverityIssues.join('; ')}`;
       }
