@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { FileText, MapPin, Clock, ChevronRight, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { MapPin, Clock, ChevronRight, AlertTriangle, CheckCircle2 } from "lucide-react";
 import Link from "next/link";
 
 export default function EvictionResponsePage() {
@@ -70,7 +70,7 @@ export default function EvictionResponsePage() {
           <h3 className="font-medium text-yellow-800 dark:text-yellow-300">Time-Sensitive Matter</h3>
           <p className="text-sm text-yellow-700 dark:text-yellow-400 mt-1">
             Eviction notices typically have strict response deadlines. Respond as soon as possible to protect your rights.
-            If you're facing an emergency situation, consider seeking immediate legal assistance.
+            If you&apos;re facing an emergency situation, consider seeking immediate legal assistance.
           </p>
         </div>
       </div>

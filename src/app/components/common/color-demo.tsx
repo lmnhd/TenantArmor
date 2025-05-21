@@ -60,7 +60,7 @@ const ColorDemo: React.FC = () => {
                     if ((r * 0.299 + g * 0.587 + b * 0.114) < 186) textColor = "text-white";
                 }
             }
-          } catch (e) { /* Ignore parsing errors */ }
+          } catch { /* Ignore parsing errors */ }
           
           return (
             <div key={varName} className="flex items-center justify-between p-2 rounded-md" style={{ backgroundColor: `hsl(${colorValue})` }}>

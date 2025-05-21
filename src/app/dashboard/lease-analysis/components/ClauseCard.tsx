@@ -8,7 +8,7 @@ const ClauseCard: React.FC<ClauseCardProps> = ({ clause }) => {
   return (
     <div className="mb-6 p-6 bg-white dark:bg-gray-800 shadow-lg rounded-lg">
       <h3 className="text-xl font-bold text-primary mb-2">{clause.title}</h3>
-      <p className="text-muted-foreground mb-3 italic">Original Text: "{clause.text}"</p>
+      <p className="text-muted-foreground mb-3 italic">Original Text: &quot;{clause.text}&quot;</p>
       {clause.issues.length > 0 && (
         <div>
           <h4 className="text-md font-semibold mb-2">Potential Issues & Recommendations:</h4>

@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardContent } from "@/components/ui/card";
-import { ArrowLeft, FileText, Pencil, Download, InfoIcon } from "lucide-react";
+import { ArrowLeft, Pencil, Download, InfoIcon } from "lucide-react";
 import Link from "next/link";
 
 // Mock data for response templates
