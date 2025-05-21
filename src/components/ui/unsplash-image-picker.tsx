@@ -42,7 +42,6 @@ export function UnsplashImagePicker({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isOpen, setIsOpen] = useState(false);
-  const [selectedPhoto, setSelectedPhoto] = useState<UnsplashPhoto | null>(null);
 
   const searchPhotos = async () => {
     if (!query.trim()) return;
@@ -77,8 +76,6 @@ export function UnsplashImagePicker({
   };
 
   const handleSelectPhoto = async (photo: UnsplashPhoto) => {
-    setSelectedPhoto(photo);
-    
     // Track download as per Unsplash API guidelines
     try {
       await fetch(

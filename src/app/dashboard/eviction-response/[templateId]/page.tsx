@@ -60,7 +60,11 @@ Sincerely,
   // More templates would be defined here for other IDs
 };
 
-export default function EvictionResponseTemplatePage({ params }: { params: { templateId: string } }) {
+export default function EvictionResponseTemplatePage({ 
+  params 
+}: { 
+  params: { templateId: string } 
+}) {
   const { templateId } = params;
   const template = templateData[templateId as keyof typeof templateData] || {
     title: "Template Not Found",
