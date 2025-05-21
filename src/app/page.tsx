@@ -1,7 +1,52 @@
 import Link from 'next/link';
+import Image from 'next/image';
 
 // Placeholder for icons
 const PlaceholderIcon = ({ className }: { className?: string }) => <span className={`inline-block h-5 w-5 ${className}`}></span>;
+
+// Simple component to display Unsplash images with attribution
+const UnsplashImage = ({
+  src,
+  alt,
+  photographer,
+  photographerUrl,
+  className
+}: {
+  src: string;
+  alt: string;
+  photographer: string;
+  photographerUrl: string;
+  className?: string;
+}) => (
+  <div className={`relative ${className}`}>
+    <Image 
+      src={src} 
+      alt={alt}
+      fill
+      className="object-cover rounded-lg"
+    />
+    <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-50 text-white text-xs p-1">
+      Photo by{" "}
+      <a 
+        href={photographerUrl} 
+        target="_blank" 
+        rel="noopener noreferrer"
+        className="underline"
+      >
+        {photographer}
+      </a>
+      {" "}on{" "}
+      <a 
+        href="https://unsplash.com" 
+        target="_blank" 
+        rel="noopener noreferrer"
+        className="underline"
+      >
+        Unsplash
+      </a>
+    </div>
+  </div>
+);
 
 export default function LandingPage() {
   return (
@@ -26,8 +71,18 @@ export default function LandingPage() {
       {/* Main Content */}
       <main className="flex-grow">
         {/* Hero Section */}
-        <section className="py-20 md:py-32 bg-gradient-to-b from-white dark:from-gray-800 to-gray-100 dark:to-gray-800/80 text-center">
-          <div className="container mx-auto px-6">
+        <section className="py-20 md:py-32 bg-gradient-to-b from-white dark:from-gray-800 to-gray-100 dark:to-gray-800/80 text-center relative">
+          {/* Hero Background Image */}
+          <div className="absolute inset-0 z-0 opacity-20">
+            <UnsplashImage
+              src="https://images.unsplash.com/photo-1560518883-ce09059eeffa?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1973&q=80"
+              alt="Modern apartment building"
+              photographer="Avi Waxman"
+              photographerUrl="https://unsplash.com/@aviwaxman"
+              className="w-full h-full"
+            />
+          </div>
+          <div className="container mx-auto px-6 relative z-10">
             <h1 className="text-4xl md:text-5xl font-extrabold text-gray-800 dark:text-white mb-6">
               Empowering Tenants with Clear Legal Insights.
             </h1>
@@ -46,7 +101,16 @@ export default function LandingPage() {
             <h2 className="text-3xl font-bold text-center text-gray-800 dark:text-white mb-12">Our Core Services</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-12">
               {/* Lease Analysis Card */}
-              <div className="bg-white dark:bg-gray-800 p-8 rounded-xl shadow-xl hover:shadow-2xl transition-shadow">
+              <div className="bg-white dark:bg-gray-800 p-8 rounded-xl shadow-xl hover:shadow-2xl transition-shadow overflow-hidden">
+                <div className="mb-6 h-48 relative">
+                  <UnsplashImage
+                    src="https://images.unsplash.com/photo-1554224155-6726b3ff858f?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1011&q=80"
+                    alt="Legal document with pen"
+                    photographer="Gabrielle Henderson"
+                    photographerUrl="https://unsplash.com/@gabriellefaithhenderson"
+                    className="w-full h-full"
+                  />
+                </div>
                 <PlaceholderIcon className="text-blue-500 mb-4 h-10 w-10" /> {/* Placeholder for Lease Icon */}
                 <h3 className="text-2xl font-semibold text-gray-800 dark:text-gray-100 mb-3">Lease Analysis</h3>
                 <p className="text-gray-600 dark:text-gray-300 mb-6">
@@ -58,7 +122,16 @@ export default function LandingPage() {
               </div>
 
               {/* Eviction Response Card */}
-              <div className="bg-white dark:bg-gray-800 p-8 rounded-xl shadow-xl hover:shadow-2xl transition-shadow">
+              <div className="bg-white dark:bg-gray-800 p-8 rounded-xl shadow-xl hover:shadow-2xl transition-shadow overflow-hidden">
+                <div className="mb-6 h-48 relative">
+                  <UnsplashImage
+                    src="https://images.unsplash.com/photo-1589578527966-fdac0f44566c?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1974&q=80"
+                    alt="Person working on legal documents"
+                    photographer="Towfiqu barbhuiya"
+                    photographerUrl="https://unsplash.com/@towfiqu999999"
+                    className="w-full h-full"
+                  />
+                </div>
                 <PlaceholderIcon className="text-green-500 mb-4 h-10 w-10" /> {/* Placeholder for Shield Icon */}
                 <h3 className="text-2xl font-semibold text-gray-800 dark:text-gray-100 mb-3">Eviction Response</h3>
                 <p className="text-gray-600 dark:text-gray-300 mb-6">

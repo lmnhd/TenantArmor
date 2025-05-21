@@ -1,61 +1,48 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { searchPhotos, getRandomPhoto, trackPhotoDownload } from '@/lib/unsplash';
+import { searchUnsplashPhotos, getRandomUnsplashPhoto, trackUnsplashDownload } from '@/lib/unsplash';
+import { NextResponse } from 'next/server';
 
-export async function GET(request: NextRequest) {
-  const searchParams = request.nextUrl.searchParams;
-  const action = searchParams.get('action');
-  const query = searchParams.get('query') || '';
-  const page = parseInt(searchParams.get('page') || '1', 10);
-  const perPage = parseInt(searchParams.get('perPage') || '20', 10);
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url);
+  const query = searchParams.get('query');
+  const count = searchParams.get('count');
+  const random = searchParams.get('random');
+
+  if (!query) {
+    return NextResponse.json({ error: 'Query parameter is required' }, { status: 400 });
+  }
 
   try {
-    if (action === 'search' && query) {
-      const result = await searchPhotos(query, page, perPage);
-      
-      if (result.error) {
-        return NextResponse.json({ error: result.error }, { status: 400 });
-      }
-      
-      return NextResponse.json(result);
+    let data;
+    if (random === 'true') {
+      data = await getRandomUnsplashPhoto(query);
+    } else {
+      data = await searchUnsplashPhotos(query, count ? parseInt(count) : 1);
     }
-    
-    if (action === 'random') {
-      const result = await getRandomPhoto(query || undefined);
-      
-      if (result.error) {
-        return NextResponse.json({ error: result.error }, { status: 400 });
-      }
-      
-      return NextResponse.json(result);
-    }
-    
-    if (action === 'trackDownload') {
-      const downloadLocation = searchParams.get('downloadLocation');
-      
-      if (!downloadLocation) {
-        return NextResponse.json(
-          { error: 'Download location is required' }, 
-          { status: 400 }
-        );
-      }
-      
-      const result = await trackPhotoDownload(downloadLocation);
-      
-      if (result.error) {
-        return NextResponse.json({ error: result.error }, { status: 400 });
-      }
-      
-      return NextResponse.json(result);
-    }
-    
-    return NextResponse.json(
-      { error: 'Invalid action. Use "search", "random", or "trackDownload"' }, 
-      { status: 400 }
-    );
+    return NextResponse.json(data);
   } catch (error) {
-    console.error('Unsplash API error:', error);
+    console.error('Error fetching photos:', error);
     return NextResponse.json(
-      { error: 'Failed to process request' }, 
+      { error: 'Failed to fetch photos' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function POST(request: Request) {
+  const body = await request.json();
+  const { downloadLocation } = body;
+
+  if (!downloadLocation) {
+    return NextResponse.json({ error: 'Download location is required' }, { status: 400 });
+  }
+
+  try {
+    await trackUnsplashDownload(downloadLocation);
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('Error tracking download:', error);
+    return NextResponse.json(
+      { error: 'Failed to track download' },
       { status: 500 }
     );
   }

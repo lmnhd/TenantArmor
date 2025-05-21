@@ -8,6 +8,12 @@ export const unsplashApi = createApi({
   fetch: fetch as unknown as typeof globalThis.fetch,
 });
 
+// Unsplash API integration
+export const unsplashConfig = {
+  accessKey: process.env.UNSPLASH_ACCESS_KEY || '',
+  apiUrl: 'https://api.unsplash.com',
+};
+
 // Wrapper function to search for photos
 export async function searchPhotos(query: string, page = 1, perPage = 20) {
   try {
@@ -79,4 +85,72 @@ export async function trackPhotoDownload(downloadLocation: string) {
       error: error instanceof Error ? error.message : 'Unknown error',
     };
   }
+}
+
+export async function searchUnsplashPhotos(query: string, count: number = 1) {
+  const response = await fetch(
+    `${unsplashConfig.apiUrl}/search/photos?query=${encodeURIComponent(query)}&per_page=${count}`,
+    {
+      headers: {
+        'Authorization': `Client-ID ${unsplashConfig.accessKey}`,
+      },
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch Unsplash photos: ${response.statusText}`);
+  }
+
+  const data = await response.json();
+  return data.results;
+}
+
+export async function getRandomUnsplashPhoto(query: string) {
+  const response = await fetch(
+    `${unsplashConfig.apiUrl}/photos/random?query=${encodeURIComponent(query)}`,
+    {
+      headers: {
+        'Authorization': `Client-ID ${unsplashConfig.accessKey}`,
+      },
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch random Unsplash photo: ${response.statusText}`);
+  }
+
+  return await response.json();
+}
+
+export interface UnsplashPhoto {
+  id: string;
+  width: number;
+  height: number;
+  urls: {
+    raw: string;
+    full: string;
+    regular: string;
+    small: string;
+    thumb: string;
+  };
+  alt_description: string;
+  user: {
+    name: string;
+    username: string;
+    links: {
+      html: string;
+    };
+  };
+  links: {
+    download_location: string;
+  };
+}
+
+// Trigger download tracking when photo is used
+export async function trackUnsplashDownload(downloadLocation: string) {
+  await fetch(downloadLocation, {
+    headers: {
+      'Authorization': `Client-ID ${unsplashConfig.accessKey}`,
+    },
+  });
 } 
