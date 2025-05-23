@@ -27,9 +27,21 @@ if (process.env.NODE_ENV === 'development' && process.env.USE_LOCAL_DYNAMODB ===
     region: awsRegion,
   });
 } else {
-  console.log('Initializing DynamoDB and SQS clients for production (relying on IAM role)');
-  ddbClient = new DynamoDBClient({ region: awsRegion });
-  sqsClient = new SQSClient({ region: awsRegion });
+  console.log('Initializing DynamoDB and SQS clients for production (using static credentials)');
+  ddbClient = new DynamoDBClient({ 
+    region: awsRegion,
+    credentials: {
+      accessKeyId: process.env.AWS_ACCESS_KEY_ID_NEXTJS_APP || '',
+      secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY_NEXTJS_APP || '',
+    }
+  });
+  sqsClient = new SQSClient({ 
+    region: awsRegion,
+    credentials: {
+      accessKeyId: process.env.AWS_ACCESS_KEY_ID_NEXTJS_APP || '',
+      secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY_NEXTJS_APP || '',
+    }
+  });
 }
 
 // --- TypeScript Interfaces for AI Schemas ---
