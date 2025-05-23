@@ -50,6 +50,15 @@ export default function UploadLeasePage() {
     const file = acceptedFiles[0];
     if (!file) return;
 
+    // Handle HEIC/HEIF format conversion for iOS devices
+    if (file.type === 'image/heic' || file.type === 'image/heif' || 
+        file.name.toLowerCase().endsWith('.heic') || file.name.toLowerCase().endsWith('.heif')) {
+      
+      alert('HEIC/HEIF format detected. Converting to JPEG for better compatibility...');
+      convertHeicToJpeg(file);
+      return;
+    }
+
     const fileType = file.type.startsWith('image/') ? 'image' : 'pdf';
     
     if (fileType === 'image') {
@@ -60,10 +69,67 @@ export default function UploadLeasePage() {
     }
   }, []);
 
+  // Helper function to convert HEIC/HEIF to JPEG
+  const convertHeicToJpeg = useCallback(async (file: File) => {
+    try {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      const img = document.createElement('img');
+      const url = URL.createObjectURL(file);
+      
+      img.onload = () => {
+        const maxWidth = 2048;
+        const maxHeight = 2048;
+        let { width, height } = img;
+        
+        if (width > maxWidth || height > maxHeight) {
+          const aspectRatio = width / height;
+          if (width > height) {
+            width = maxWidth;
+            height = maxWidth / aspectRatio;
+          } else {
+            height = maxHeight;
+            width = maxHeight * aspectRatio;
+          }
+        }
+        
+        canvas.width = width;
+        canvas.height = height;
+        ctx?.drawImage(img, 0, 0, width, height);
+        
+        canvas.toBlob((blob) => {
+          if (blob) {
+            const convertedFile = new File([blob], file.name.replace(/\.(heic|heif)$/i, '.jpg'), {
+              type: 'image/jpeg',
+              lastModified: Date.now()
+            });
+            
+            const preview = URL.createObjectURL(convertedFile);
+            setUploadedFile({ file: convertedFile, preview, type: 'image' });
+          } else {
+            alert('Failed to convert HEIC file. Please try using camera capture instead.');
+          }
+        }, 'image/jpeg', 0.85);
+        
+        URL.revokeObjectURL(url);
+      };
+      
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        alert('Unable to process HEIC file. Please try using camera capture instead.');
+      };
+      
+      img.src = url;
+    } catch (error) {
+      console.error('HEIC conversion error:', error);
+      alert('Failed to convert HEIC file. Please try using camera capture instead.');
+    }
+  }, []);
+
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     accept: {
-      'image/*': ['.jpeg', '.jpg', '.png'],
+      'image/*': ['.jpeg', '.jpg', '.png', '.heic', '.heif'],
       'application/pdf': ['.pdf']
     },
     maxSize: 10 * 1024 * 1024, // 10MB
