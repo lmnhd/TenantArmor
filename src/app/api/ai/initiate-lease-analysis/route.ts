@@ -84,8 +84,9 @@ async function updateDynamoDBStatus(analysisId: string, status: string, results?
     console.error('DynamoDB client or table name not initialized for status update.');
     return;
   }
-  const updateExpressionParts: string[] = [
-    "SET #status = :status",
+  
+  const setUpdateExpressionParts: string[] = [
+    "#status = :status",
     "lastUpdatedTimestamp = :lastUpdatedTimestamp"
   ];
   const expressionAttributeNames: { [key: string]: string } = { '#status': 'status' };
@@ -95,20 +96,24 @@ async function updateDynamoDBStatus(analysisId: string, status: string, results?
   };
 
   if (results) {
-    updateExpressionParts.push("analysisResults = :analysisResults");
+    setUpdateExpressionParts.push("analysisResults = :analysisResults");
     expressionAttributeValues[':analysisResults'] = { M: marshall(results, { convertEmptyValues: true, removeUndefinedValues: true }) };
   }
+  
+  let updateExpression = `SET ${setUpdateExpressionParts.join(", ")}`;
+  
   if (errorDetails) {
-    updateExpressionParts.push("errorDetails = :errorDetails");
+    setUpdateExpressionParts.push("errorDetails = :errorDetails");
     expressionAttributeValues[':errorDetails'] = { S: errorDetails };
+    updateExpression = `SET ${setUpdateExpressionParts.join(", ")}`;
   } else {
-    updateExpressionParts.push("REMOVE errorDetails"); 
+    updateExpression += " REMOVE errorDetails";
   }
 
   const command = new UpdateItemCommand({
     TableName: dynamoDbTableName!,
     Key: { analysisId: { S: analysisId } },
-    UpdateExpression: updateExpressionParts.join(", "),
+    UpdateExpression: updateExpression,
     ExpressionAttributeNames: expressionAttributeNames,
     ExpressionAttributeValues: expressionAttributeValues,
     ReturnValues: "UPDATED_NEW", 
