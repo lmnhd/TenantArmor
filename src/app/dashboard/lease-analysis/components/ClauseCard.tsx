@@ -13,8 +13,8 @@ const ClauseCard: React.FC<ClauseCardProps> = ({ clause }) => {
         <div>
           <h4 className="text-md font-semibold mb-2">Potential Issues & Recommendations:</h4>
           <ul className="list-disc pl-5 space-y-2">
-            {clause.issues.map((issue: Issue) => (
-              <li key={issue.id} className={`border-l-4 p-3 rounded-r-md 
+            {clause.issues.map((issue: Issue, index: number) => (
+              <li key={index} className={`border-l-4 p-3 rounded-r-md 
                 ${issue.severity === 'High' ? 'border-red-500 bg-red-50 dark:bg-red-900/30' : 
                   issue.severity === 'Medium' ? 'border-yellow-500 bg-yellow-50 dark:bg-yellow-900/30' : 
                   'border-green-500 bg-green-50 dark:bg-green-900/30'}`}>
