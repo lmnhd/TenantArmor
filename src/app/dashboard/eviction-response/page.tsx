@@ -1,133 +1,259 @@
+"use client";
+
+import React, { useState } from "react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { MapPin, Clock, ChevronRight, AlertTriangle, CheckCircle2 } from "lucide-react";
-import Link from "next/link";
+import { 
+  Brain, 
+  Shield, 
+  Clock, 
+  FileText, 
+  AlertTriangle,
+  CheckCircle,
+  ArrowLeft,
+  Zap
+} from "lucide-react";
+
+import EvictionUpload from "@/components/eviction-upload";
+import EvictionProcessing from "@/components/eviction-processing";
+import EvictionResults from "@/components/eviction-results";
+
+type WorkflowStep = 'upload' | 'processing' | 'results' | 'error';
+
+interface ProcessingData {
+  file: File;
+  state: string;
+  formData: Record<string, any>;
+}
 
 export default function EvictionResponsePage() {
-  // Mock data for templates
-  const responseTemplates = [
-    {
-      id: "ca-notice-to-pay",
-      title: "Response to Pay Rent or Quit Notice",
-      state: "California",
-      description: "Use this template when you've received a notice demanding payment of rent.",
-      timeEstimate: "20-30 minutes",
-      category: "Payment Issues"
-    },
-    {
-      id: "tx-cure-notice",
-      title: "Response to Notice to Cure Lease Violation",
-      state: "Texas",
-      description: "Use when landlord claims you've violated a lease term and demands you fix the issue.",
-      timeEstimate: "25-35 minutes",
-      category: "Lease Violations"
-    },
-    {
-      id: "ny-no-fault-eviction",
-      title: "Response to No-Fault Eviction Notice",
-      state: "New York",
-      description: "For situations where landlord is attempting to evict without claiming fault.",
-      timeEstimate: "30-40 minutes",
-      category: "No-Fault Eviction"
-    },
-    {
-      id: "general-hardship",
-      title: "Hardship Declaration",
-      state: "All States",
-      description: "General template explaining financial hardship circumstances.",
-      timeEstimate: "15-25 minutes",
-      category: "Financial Hardship"
-    },
-    {
-      id: "general-request-repair",
-      title: "Repair Request with Eviction Defense",
-      state: "All States",
-      description: "For responding to eviction while documenting repair issues or habitability concerns.",
-      timeEstimate: "25-40 minutes",
-      category: "Repairs & Habitability"
+  const [currentStep, setCurrentStep] = useState<WorkflowStep>('upload');
+  const [processingData, setProcessingData] = useState<ProcessingData | null>(null);
+  const [results, setResults] = useState<any>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  function handleStartAnalysis(file: File, state: string, formData: Record<string, any>) {
+    setProcessingData({ file, state, formData });
+    setCurrentStep('processing');
+    setError(null);
+  }
+
+  function handleProcessingComplete(analysisResults: any) {
+    setResults(analysisResults);
+    setCurrentStep('results');
+  }
+
+  function handleProcessingError(errorMessage: string) {
+    setError(errorMessage);
+    setCurrentStep('error');
+  }
+
+  function handleProcessingCancel() {
+    setCurrentStep('upload');
+    setProcessingData(null);
+    setError(null);
+  }
+
+  function handleStartOver() {
+    setCurrentStep('upload');
+    setProcessingData(null);
+    setResults(null);
+    setError(null);
+  }
+
+  function handleRetry() {
+    if (processingData) {
+      setCurrentStep('processing');
+      setError(null);
     }
-  ];
+  }
+
+  function getStepProgress() {
+    switch (currentStep) {
+      case 'upload': return 0;
+      case 'processing': return 50;
+      case 'results': return 100;
+      case 'error': return 25;
+      default: return 0;
+    }
+  }
 
   return (
-    <div className="space-y-8">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold">Eviction Response</h1>
-          <p className="text-muted-foreground mt-2">
-            Create customized responses to eviction notices using our templates
-          </p>
+    <div className="container mx-auto p-6 max-w-4xl">
+      {/* Header */}
+      <div className="mb-8">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="p-2 bg-blue-100 dark:bg-blue-900 rounded-lg">
+            <Brain className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+          </div>
+          <div>
+            <h1 className="text-3xl font-bold">AI-Powered Eviction Response</h1>
+            <p className="text-muted-foreground">
+              Upload your eviction notice and get a customized legal response in minutes
+            </p>
+          </div>
         </div>
-        <Button>
-          <Link href="/dashboard/eviction-response/custom">
-            Create Custom Response
-          </Link>
-        </Button>
+
+        {/* Progress Indicator */}
+        <div className="space-y-2">
+          <div className="flex justify-between text-sm">
+            <span>Progress</span>
+            <span>{getStepProgress()}%</span>
+          </div>
+          <Progress value={getStepProgress()} className="h-2" />
+          <div className="flex justify-between text-xs text-muted-foreground">
+            <span>Upload</span>
+            <span>Processing</span>
+            <span>Results</span>
+          </div>
+        </div>
       </div>
 
-      <div className="flex items-start gap-4 p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
-        <AlertTriangle className="h-5 w-5 text-yellow-600 dark:text-yellow-400 mt-0.5 flex-shrink-0" />
-        <div>
-          <h3 className="font-medium text-yellow-800 dark:text-yellow-300">Time-Sensitive Matter</h3>
-          <p className="text-sm text-yellow-700 dark:text-yellow-400 mt-1">
-            Eviction notices typically have strict response deadlines. Respond as soon as possible to protect your rights.
-            If you&apos;re facing an emergency situation, consider seeking immediate legal assistance.
-          </p>
-        </div>
-      </div>
-
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        {responseTemplates.map((template) => (
-          <Card key={template.id} className="overflow-hidden">
-            <CardHeader className="pb-2">
-              <div className="flex justify-between items-start mb-1">
-                <CardTitle className="text-lg">{template.title}</CardTitle>
+      {/* Information Cards */}
+      {currentStep === 'upload' && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+          <Card>
+            <CardHeader className="pb-3">
+              <div className="flex items-center gap-2">
+                <Zap className="h-5 w-5 text-yellow-600" />
+                <CardTitle className="text-lg">AI-Powered Analysis</CardTitle>
               </div>
-              <CardDescription className="flex items-center">
-                <MapPin className="h-3.5 w-3.5 mr-1" />
-                {template.state}
+            </CardHeader>
+            <CardContent>
+              <CardDescription>
+                Our AI reads your eviction notice, identifies key information, and analyzes potential legal defenses using state-specific laws.
+              </CardDescription>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-3">
+              <div className="flex items-center gap-2">
+                <Shield className="h-5 w-5 text-green-600" />
+                <CardTitle className="text-lg">Legal Templates</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <CardDescription>
+                Generates responses using proven legal templates customized for your state's specific eviction laws and procedures.
+              </CardDescription>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-3">
+              <div className="flex items-center gap-2">
+                <Clock className="h-5 w-5 text-blue-600" />
+                <CardTitle className="text-lg">Fast Results</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <CardDescription>
+                Get your customized legal response in under 3 minutes, including court filing instructions and legal aid contacts.
+              </CardDescription>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Main Content Area */}
+      <div className="space-y-6">
+        {/* Upload Step */}
+        {currentStep === 'upload' && (
+          <EvictionUpload
+            onStartAnalysis={handleStartAnalysis}
+            isProcessing={false}
+          />
+        )}
+
+        {/* Processing Step */}
+        {currentStep === 'processing' && processingData && (
+          <EvictionProcessing
+            file={processingData.file}
+            state={processingData.state}
+            formData={processingData.formData}
+            onComplete={handleProcessingComplete}
+            onError={handleProcessingError}
+            onCancel={handleProcessingCancel}
+          />
+        )}
+
+        {/* Results Step */}
+        {currentStep === 'results' && results && (
+          <EvictionResults
+            results={results}
+            onStartOver={handleStartOver}
+          />
+        )}
+
+        {/* Error Step */}
+        {currentStep === 'error' && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <AlertTriangle className="h-5 w-5 text-red-600" />
+                Processing Error
+              </CardTitle>
+              <CardDescription>
+                An error occurred while processing your eviction notice
               </CardDescription>
             </CardHeader>
-            <CardContent className="pb-3">
-              <p className="text-sm text-muted-foreground mb-3">
-                {template.description}
-              </p>
-              <div className="flex justify-between text-sm text-muted-foreground">
-                <div className="flex items-center">
-                  <Clock className="h-3.5 w-3.5 mr-1" />
-                  {template.timeEstimate}
+            <CardContent>
+              <div className="space-y-4">
+                <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                  <p className="text-sm text-red-800 dark:text-red-300">
+                    {error || 'An unexpected error occurred. Please try again.'}
+                  </p>
                 </div>
-                <div className="px-2 py-0.5 bg-primary/10 text-primary rounded-full text-xs">
-                  {template.category}
+                
+                <div className="flex gap-3">
+                  <Button onClick={handleRetry}>
+                    Try Again
+                  </Button>
+                  <Button variant="outline" onClick={handleStartOver}>
+                    <ArrowLeft className="h-4 w-4 mr-2" />
+                    Start Over
+                  </Button>
                 </div>
               </div>
             </CardContent>
-            <CardFooter className="bg-muted/50 pt-3">
-              <Button asChild className="w-full">
-                <Link href={`/dashboard/eviction-response/${template.id}`}>
-                  Use Template
-                  <ChevronRight className="h-4 w-4 ml-1" />
-                </Link>
-              </Button>
-            </CardFooter>
           </Card>
-        ))}
+        )}
       </div>
-      
-      <Card className="p-6 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-900">
-        <div className="flex items-start gap-4">
-          <CheckCircle2 className="h-6 w-6 text-green-600 dark:text-green-400 flex-shrink-0" />
-          <div>
-            <h3 className="text-lg font-semibold text-green-800 dark:text-green-300">Personalized Assistance Available</h3>
-            <p className="text-green-700 dark:text-green-400 mt-1 mb-4">
-              Need help with a complex eviction situation? Our network of attorneys can provide personalized guidance 
-              tailored to your specific circumstances.
-            </p>
-            <Button className="bg-green-600 hover:bg-green-700 text-white">
-              Connect with an Attorney
-            </Button>
+
+      {/* Legal Disclaimer */}
+      {currentStep === 'upload' && (
+        <div className="mt-12 p-6 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="h-5 w-5 text-yellow-600 mt-0.5 flex-shrink-0" />
+            <div className="space-y-2">
+              <h3 className="font-medium text-gray-900 dark:text-gray-100">
+                Important Legal Disclaimer
+              </h3>
+              <div className="text-sm text-gray-700 dark:text-gray-300 space-y-2">
+                <p>
+                  This AI-generated response is provided for informational purposes only and does not constitute legal advice. 
+                  While our system uses state-specific legal templates, every situation is unique.
+                </p>
+                <p>
+                  <strong>We strongly recommend:</strong>
+                </p>
+                <ul className="list-disc pl-5 space-y-1">
+                  <li>Reviewing any generated response with a qualified attorney</li>
+                  <li>Contacting local legal aid organizations for free assistance</li>
+                  <li>Understanding your state's specific eviction laws and deadlines</li>
+                  <li>Keeping detailed records of all communications with your landlord</li>
+                </ul>
+                <p>
+                  TenantArmor is not a law firm and cannot provide legal representation. 
+                  This tool is designed to help you understand your options and draft initial responses.
+                </p>
+              </div>
+            </div>
           </div>
         </div>
-      </Card>
+      )}
     </div>
   );
 } 
