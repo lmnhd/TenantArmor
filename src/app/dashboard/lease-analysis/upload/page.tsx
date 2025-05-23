@@ -7,9 +7,65 @@ import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { UploadCloud, FileText, AlertCircle, Camera, Image, X } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from 'next/navigation';
+
+// US States with their codes - only active states for now
+const US_STATES = [
+  // { code: 'AL', name: 'Alabama' },
+  // { code: 'AK', name: 'Alaska' },
+  // { code: 'AZ', name: 'Arizona' },
+  // { code: 'AR', name: 'Arkansas' },
+  { code: 'CA', name: 'California' },
+  // { code: 'CO', name: 'Colorado' },
+  // { code: 'CT', name: 'Connecticut' },
+  // { code: 'DE', name: 'Delaware' },
+  // { code: 'FL', name: 'Florida' },
+  // { code: 'GA', name: 'Georgia' },
+  // { code: 'HI', name: 'Hawaii' },
+  // { code: 'ID', name: 'Idaho' },
+  // { code: 'IL', name: 'Illinois' },
+  // { code: 'IN', name: 'Indiana' },
+  // { code: 'IA', name: 'Iowa' },
+  // { code: 'KS', name: 'Kansas' },
+  // { code: 'KY', name: 'Kentucky' },
+  // { code: 'LA', name: 'Louisiana' },
+  // { code: 'ME', name: 'Maine' },
+  // { code: 'MD', name: 'Maryland' },
+  // { code: 'MA', name: 'Massachusetts' },
+  // { code: 'MI', name: 'Michigan' },
+  // { code: 'MN', name: 'Minnesota' },
+  // { code: 'MS', name: 'Mississippi' },
+  // { code: 'MO', name: 'Missouri' },
+  // { code: 'MT', name: 'Montana' },
+  // { code: 'NE', name: 'Nebraska' },
+  // { code: 'NV', name: 'Nevada' },
+  // { code: 'NH', name: 'New Hampshire' },
+  // { code: 'NJ', name: 'New Jersey' },
+  // { code: 'NM', name: 'New Mexico' },
+  { code: 'NY', name: 'New York' },
+  // { code: 'NC', name: 'North Carolina' },
+  // { code: 'ND', name: 'North Dakota' },
+  // { code: 'OH', name: 'Ohio' },
+  // { code: 'OK', name: 'Oklahoma' },
+  // { code: 'OR', name: 'Oregon' },
+  // { code: 'PA', name: 'Pennsylvania' },
+  // { code: 'RI', name: 'Rhode Island' },
+  // { code: 'SC', name: 'South Carolina' },
+  // { code: 'SD', name: 'South Dakota' },
+  // { code: 'TN', name: 'Tennessee' },
+  { code: 'TX', name: 'Texas' },
+  // { code: 'UT', name: 'Utah' },
+  // { code: 'VT', name: 'Vermont' },
+  // { code: 'VA', name: 'Virginia' },
+  // { code: 'WA', name: 'Washington' },
+  // { code: 'WV', name: 'West Virginia' },
+  // { code: 'WI', name: 'Wisconsin' },
+  // { code: 'WY', name: 'Wyoming' },
+  // { code: 'DC', name: 'District of Columbia' }
+];
 
 interface UploadedFile {
   file: File;
@@ -267,7 +323,7 @@ export default function UploadLeasePage() {
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!uploadedFile || !isConsentChecked || !userSelectedState) {
-      if (!userSelectedState) setUploadError("Please specify the state/jurisdiction for the lease.");
+      if (!userSelectedState) setUploadError("Please select the state/jurisdiction for the lease.");
       else if (!uploadedFile) setUploadError("Please select a file to upload.");
       else if (!isConsentChecked) setUploadError("Please agree to the terms and privacy policy.");
       return;
@@ -411,17 +467,23 @@ export default function UploadLeasePage() {
             <Label htmlFor="state-jurisdiction" className="text-base">
               State / Jurisdiction of Lease
             </Label>
-            <Input 
-              id="state-jurisdiction"
-              type="text"
+            <Select
               value={userSelectedState}
-              onChange={(e) => setUserSelectedState(e.target.value)}
-              placeholder="E.g., California, New York"
-              className="mt-2"
-              required
-            />
+              onValueChange={(value) => setUserSelectedState(value)}
+            >
+              <SelectTrigger id="state-jurisdiction" className="mt-2">
+                <SelectValue placeholder="Select state" />
+              </SelectTrigger>
+              <SelectContent>
+                {US_STATES.map((state) => (
+                  <SelectItem key={state.code} value={state.code}>
+                    {state.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <p className="text-xs text-muted-foreground mt-1">
-              Specify the state or jurisdiction the lease agreement pertains to. This helps tailor the analysis.
+              Select the state or jurisdiction the lease agreement pertains to. This helps tailor the analysis.
             </p>
           </div>
 
