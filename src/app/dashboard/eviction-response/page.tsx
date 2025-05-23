@@ -25,6 +25,7 @@ interface ProcessingData {
   file: File;
   state: string;
   formData: Record<string, any>;
+  selectedLeaseId?: string | null;
 }
 
 export default function EvictionResponsePage() {
@@ -33,8 +34,13 @@ export default function EvictionResponsePage() {
   const [results, setResults] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
 
-  function handleStartAnalysis(file: File, state: string, formData: Record<string, any>) {
-    setProcessingData({ file, state, formData });
+  function handleStartAnalysis(
+    file: File, 
+    state: string, 
+    formData: Record<string, any>, 
+    selectedLeaseId?: string | null
+  ) {
+    setProcessingData({ file, state, formData, selectedLeaseId });
     setCurrentStep('processing');
     setError(null);
   }
@@ -173,6 +179,7 @@ export default function EvictionResponsePage() {
             file={processingData.file}
             state={processingData.state}
             formData={processingData.formData}
+            selectedLeaseId={processingData.selectedLeaseId}
             onComplete={handleProcessingComplete}
             onError={handleProcessingError}
             onCancel={handleProcessingCancel}

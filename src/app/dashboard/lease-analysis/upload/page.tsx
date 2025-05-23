@@ -1,40 +1,208 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { UploadCloud, FileText, AlertCircle } from "lucide-react";
+import { UploadCloud, FileText, AlertCircle, Camera, Image, X } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from 'next/navigation';
 
+interface UploadedFile {
+  file: File;
+  preview?: string;
+  type: 'pdf' | 'image';
+}
+
 export default function UploadLeasePage() {
-  const [file, setFile] = useState<File | null>(null);
+  const [uploadedFile, setUploadedFile] = useState<UploadedFile | null>(null);
   const [userSelectedState, setUserSelectedState] = useState<string>("");
   const [isConsentChecked, setIsConsentChecked] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [isCameraSupported, setIsCameraSupported] = useState(false);
   const router = useRouter();
 
+  // Check for camera support on component mount
+  useEffect(() => {
+    const checkCameraSupport = async () => {
+      try {
+        if (typeof navigator !== 'undefined' && 
+            navigator.mediaDevices && 
+            typeof navigator.mediaDevices.getUserMedia === 'function') {
+          // Try to enumerate devices to confirm camera access
+          const devices = await navigator.mediaDevices.enumerateDevices();
+          const hasVideoInput = devices.some(device => device.kind === 'videoinput');
+          setIsCameraSupported(hasVideoInput);
+        }
+      } catch (error) {
+        console.log('Camera support check failed:', error);
+        setIsCameraSupported(false);
+      }
+    };
+    checkCameraSupport();
+  }, []);
+
+  const onDrop = useCallback((acceptedFiles: File[]) => {
+    const file = acceptedFiles[0];
+    if (!file) return;
+
+    const fileType = file.type.startsWith('image/') ? 'image' : 'pdf';
+    
+    if (fileType === 'image') {
+      const preview = URL.createObjectURL(file);
+      setUploadedFile({ file, preview, type: fileType });
+    } else {
+      setUploadedFile({ file, type: fileType });
+    }
+  }, []);
+
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
-    accept: { 'application/pdf': ['.pdf'] },
+    onDrop,
+    accept: {
+      'image/*': ['.jpeg', '.jpg', '.png'],
+      'application/pdf': ['.pdf']
+    },
     maxSize: 10 * 1024 * 1024, // 10MB
     multiple: false,
-    onDrop: (acceptedFiles) => {
-      if (acceptedFiles.length > 0) {
-        setFile(acceptedFiles[0]);
-      }
-    }
+    disabled: isUploading
   });
+
+  const handleCameraCapture = async () => {
+    if (!isCameraSupported) {
+      alert('Camera is not supported on this device');
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: { 
+          facingMode: 'environment', // Use back camera for document scanning
+          width: { ideal: 1920 },
+          height: { ideal: 1080 }
+        } 
+      });
+      
+      // Create video element
+      const video = document.createElement('video');
+      video.srcObject = stream;
+      video.autoplay = true;
+      video.playsInline = true;
+      
+      // Create canvas for capture
+      const canvas = document.createElement('canvas');
+      const context = canvas.getContext('2d');
+      
+      // Create modal overlay for camera UI
+      const modal = document.createElement('div');
+      modal.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.9);
+        z-index: 9999;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+      `;
+      
+      video.style.cssText = `
+        max-width: 90vw;
+        max-height: 70vh;
+        border-radius: 8px;
+      `;
+      
+      // Create buttons container
+      const buttonContainer = document.createElement('div');
+      buttonContainer.style.cssText = `
+        display: flex;
+        gap: 16px;
+        margin-top: 20px;
+      `;
+      
+      // Capture button
+      const captureButton = document.createElement('button');
+      captureButton.textContent = '📸 Capture';
+      captureButton.style.cssText = `
+        padding: 12px 24px;
+        background: #3b82f6;
+        color: white;
+        border: none;
+        border-radius: 6px;
+        font-size: 16px;
+        cursor: pointer;
+      `;
+      
+      // Cancel button
+      const cancelButton = document.createElement('button');
+      cancelButton.textContent = '✕ Cancel';
+      cancelButton.style.cssText = `
+        padding: 12px 24px;
+        background: #6b7280;
+        color: white;
+        border: none;
+        border-radius: 6px;
+        font-size: 16px;
+        cursor: pointer;
+      `;
+      
+      // Add elements to modal
+      modal.appendChild(video);
+      buttonContainer.appendChild(captureButton);
+      buttonContainer.appendChild(cancelButton);
+      modal.appendChild(buttonContainer);
+      document.body.appendChild(modal);
+      
+      // Handle capture
+      captureButton.onclick = () => {
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        context?.drawImage(video, 0, 0);
+        
+        canvas.toBlob((blob) => {
+          if (blob) {
+            const file = new File([blob], `lease-document-${Date.now()}.jpg`, { type: 'image/jpeg' });
+            const preview = URL.createObjectURL(file);
+            setUploadedFile({ file, preview, type: 'image' });
+          }
+        }, 'image/jpeg', 0.85);
+        
+        // Cleanup
+        stream.getTracks().forEach(track => track.stop());
+        document.body.removeChild(modal);
+      };
+      
+      // Handle cancel
+      cancelButton.onclick = () => {
+        stream.getTracks().forEach(track => track.stop());
+        document.body.removeChild(modal);
+      };
+      
+    } catch (error) {
+      console.error('Error accessing camera:', error);
+      alert('Unable to access camera. Please check permissions or use file upload instead.');
+    }
+  };
+
+  const removeFile = () => {
+    if (uploadedFile?.preview) {
+      URL.revokeObjectURL(uploadedFile.preview);
+    }
+    setUploadedFile(null);
+  };
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!file || !isConsentChecked || !userSelectedState) {
+    if (!uploadedFile || !isConsentChecked || !userSelectedState) {
       if (!userSelectedState) setUploadError("Please specify the state/jurisdiction for the lease.");
-      else if (!file) setUploadError("Please select a file to upload.");
+      else if (!uploadedFile) setUploadError("Please select a file to upload.");
       else if (!isConsentChecked) setUploadError("Please agree to the terms and privacy policy.");
       return;
     }
@@ -43,7 +211,7 @@ export default function UploadLeasePage() {
     setIsUploading(true);
     
     const formData = new FormData();
-    formData.append('file', file);
+    formData.append('file', uploadedFile.file);
     formData.append('userSelectedState', userSelectedState);
 
     try {
@@ -63,11 +231,6 @@ export default function UploadLeasePage() {
       if (result.analysisId) {
         router.push(`/dashboard/lease-analysis/${result.analysisId}`);
       } else {
-        // Fallback or if analysis ID is not immediately available and polling is needed from results page
-        // For now, let's assume direct navigation or handle specific cases as requirements evolve.
-        console.warn('Analysis ID not found in response, redirecting to general history or a pending page.');
-        // router.push('/dashboard/lease-analysis'); // Or a page showing pending analysis
-        // For now, if no analysisId, treat as error for simplicity
         throw new Error('Analysis ID not returned from the API.');
       }
     } catch (error) {
@@ -91,40 +254,91 @@ export default function UploadLeasePage() {
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
             <Label htmlFor="lease-document" className="text-base">
-              Lease Document (PDF)
+              Lease Document (PDF or Photo)
             </Label>
             
-            <div 
-              {...getRootProps()} 
-              className="mt-2 border-2 border-dashed rounded-lg p-8 text-center cursor-pointer hover:bg-muted/50 transition-colors"
-            >
-              <input {...getInputProps()} id="lease-document" />
-              <UploadCloud className="h-10 w-10 text-muted-foreground mx-auto mb-4" />
-              
-              {file ? (
-                <div className="space-y-2">
-                  <div className="flex items-center justify-center gap-2">
-                    <FileText className="h-5 w-5 text-primary" />
-                    <span className="font-medium">{file.name}</span>
+            {!uploadedFile ? (
+              <div className="space-y-4 mt-2">
+                {/* Drag and drop area */}
+                <div 
+                  {...getRootProps()} 
+                  className="border-2 border-dashed rounded-lg p-8 text-center cursor-pointer hover:bg-muted/50 transition-colors"
+                >
+                  <input {...getInputProps()} id="lease-document" />
+                  <UploadCloud className="h-10 w-10 text-muted-foreground mx-auto mb-4" />
+                  
+                  <div className="space-y-2">
+                    <p className="font-medium">
+                      {isDragActive ? "Drop the file here" : "Drag and drop your lease document"}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      or click to browse files
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-2">
+                      Supports: PDF, JPG, PNG (Max 10MB)
+                    </p>
                   </div>
-                  <p className="text-sm text-muted-foreground">
-                    Click or drag to replace
-                  </p>
                 </div>
-              ) : (
-                <div className="space-y-2">
-                  <p className="font-medium">
-                    {isDragActive ? "Drop the file here" : "Drag and drop your lease"}
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    or click to browse files
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-2">
-                    PDF files up to 10MB
-                  </p>
+                
+                {/* Alternative: Camera button */}
+                {isCameraSupported && (
+                  <div className="flex items-center gap-4">
+                    <div className="flex-1 border-t border-muted"></div>
+                    <span className="text-sm text-muted-foreground">OR</span>
+                    <div className="flex-1 border-t border-muted"></div>
+                  </div>
+                )}
+                
+                {isCameraSupported && (
+                  <Button
+                    type="button"
+                    onClick={handleCameraCapture}
+                    variant="outline"
+                    size="lg"
+                    className="w-full"
+                    disabled={isUploading}
+                  >
+                    <Camera className="h-5 w-5 mr-2" />
+                    Take Photo with Camera
+                  </Button>
+                )}
+              </div>
+            ) : (
+              <div className="mt-2 flex items-start gap-4 p-4 border rounded-lg">
+                <div className="p-2 bg-primary/10 rounded">
+                  {uploadedFile.type === 'image' ? (
+                    <Image className="h-6 w-6 text-primary" />
+                  ) : (
+                    <FileText className="h-6 w-6 text-primary" />
+                  )}
                 </div>
-              )}
-            </div>
+                <div className="flex-1 min-w-0">
+                  <h4 className="font-medium truncate">{uploadedFile.file.name}</h4>
+                  <p className="text-sm text-muted-foreground">
+                    {(uploadedFile.file.size / 1024 / 1024).toFixed(1)} MB • {uploadedFile.type.toUpperCase()}
+                  </p>
+                  {uploadedFile.preview && (
+                    <div className="mt-2">
+                      <img 
+                        src={uploadedFile.preview} 
+                        alt="Preview" 
+                        className="max-w-xs max-h-32 object-contain border rounded"
+                      />
+                    </div>
+                  )}
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={removeFile}
+                  disabled={isUploading}
+                  className="text-muted-foreground hover:text-destructive"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            )}
           </div>
 
           <div>
@@ -188,7 +402,7 @@ export default function UploadLeasePage() {
 
           <Button 
             type="submit" 
-            disabled={!file || !isConsentChecked || !userSelectedState || isUploading}
+            disabled={!uploadedFile || !isConsentChecked || !userSelectedState || isUploading}
             className="w-full"
           >
             {isUploading ? "Processing..." : "Start Analysis"}

@@ -33,6 +33,7 @@ interface EvictionProcessingProps {
   file: File;
   state: string;
   formData: Record<string, any>;
+  selectedLeaseId?: string | null;
   onComplete: (results: any) => void;
   onError: (error: string) => void;
   onCancel: () => void;
@@ -42,6 +43,7 @@ export default function EvictionProcessing({
   file, 
   state, 
   formData, 
+  selectedLeaseId,
   onComplete, 
   onError, 
   onCancel 
@@ -179,6 +181,11 @@ export default function EvictionProcessing({
       apiFormData.append('file', file);
       apiFormData.append('state', state);
       apiFormData.append('additionalData', JSON.stringify(formData));
+      
+      // Add lease context if selected
+      if (selectedLeaseId) {
+        apiFormData.append('selectedLeaseId', selectedLeaseId);
+      }
 
       const response = await fetch('/api/eviction-response/analyze', {
         method: 'POST',
