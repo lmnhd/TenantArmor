@@ -1,11 +1,24 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
-import { DynamoDBClient, QueryCommand } from '@aws-sdk/client-dynamodb';
+import { DynamoDBClient, ScanCommand } from '@aws-sdk/client-dynamodb';
 import { unmarshall } from '@aws-sdk/util-dynamodb';
 
 // Initialize AWS DynamoDB Client
 const awsRegion = process.env.AWS_REGION || 'us-east-1';
 const dynamoDbTableName = process.env.DYNAMODB_LEASE_ANALYSES_TABLE;
+
+interface AnalysisItem {
+  analysisId: string;
+  fileName: string;
+  uploadTimestamp: string;
+  lastUpdatedTimestamp: string;
+  status: string;
+  overallSeverity?: string;
+  summary?: string;
+  userSelectedState: string;
+  fileType: string;
+  fileSizeBytes: number;
+}
 
 let ddbClient: DynamoDBClient;
 
@@ -45,43 +58,53 @@ export async function GET() {
 
     console.log(`Fetching lease analyses for user: ${userId}`);
 
-    // Query DynamoDB for user's lease analyses
-    // Note: This assumes there's a GSI on userId for efficient querying
-    const queryCommand = new QueryCommand({
+    let result;
+    let analyses: AnalysisItem[] = [];
+
+    // TODO: Add GSI 'userId-uploadTimestamp-index' to DynamoDB table for better performance
+    // Currently using scan operation because the required GSI doesn't exist on the table.
+    // GSI should have: Partition key: userId (String), Sort key: uploadTimestamp (String)
+    // Once GSI is added, replace scan with QueryCommand using the GSI for more efficient queries.
+    
+    // Skip GSI query since the index doesn't exist, go straight to scan
+    console.log('Using scan operation (GSI not available)');
+    const scanCommand = new ScanCommand({
       TableName: dynamoDbTableName,
-      IndexName: 'userId-uploadTimestamp-index', // GSI for querying by userId
-      KeyConditionExpression: 'userId = :userId',
-      FilterExpression: 'documentType = :docType AND (#status = :completedStatus OR #status = :partialStatus)',
-      ExpressionAttributeNames: {
-        '#status': 'status'
-      },
+      FilterExpression: 'userId = :userId',
       ExpressionAttributeValues: {
-        ':userId': { S: userId },
-        ':docType': { S: 'LEASE' },
-        ':completedStatus': { S: 'ANALYSIS_COMPLETE' },
-        ':partialStatus': { S: 'PARTIAL_ANALYSIS_INSIGHTS_FAILED' }
+        ':userId': { S: userId }
       },
-      ScanIndexForward: false, // Most recent first
-      Limit: 10 // Limit to last 10 analyses
+      Limit: 20
     });
 
-    const result = await ddbClient.send(queryCommand);
-    
-    const analyses = result.Items?.map(item => {
-      const unmarshalled = unmarshall(item);
-      
-      // Extract relevant data for the frontend
-      return {
-        analysisId: unmarshalled.analysisId,
-        fileName: unmarshalled.originalFileName || unmarshalled.s3Key?.split('/').pop() || 'Unknown File',
-        uploadTimestamp: unmarshalled.uploadTimestamp,
-        status: unmarshalled.status,
-        overallSeverity: unmarshalled.analysisResults?.overallSeverity,
-        summary: unmarshalled.analysisResults?.summary
-      };
-    }) || [];
+    console.log('Executing DynamoDB scan for user:', userId);
+    result = await ddbClient.send(scanCommand);
+    console.log(`DynamoDB scan returned ${result.Items?.length || 0} items`);
 
-    console.log(`Found ${analyses.length} lease analyses for user ${userId}`);
+    if (result?.Items) {
+      analyses = result.Items.map(item => {
+        const unmarshalled = unmarshall(item);
+        
+        // Extract relevant data for the frontend
+        return {
+          analysisId: unmarshalled.analysisId,
+          fileName: unmarshalled.fileName || unmarshalled.originalFileName || unmarshalled.s3Key?.split('/').pop() || 'Unknown File',
+          uploadTimestamp: unmarshalled.uploadTimestamp,
+          lastUpdatedTimestamp: unmarshalled.lastUpdatedTimestamp,
+          status: unmarshalled.status,
+          overallSeverity: unmarshalled.analysisResults?.overallSeverity,
+          summary: unmarshalled.analysisResults?.summary,
+          userSelectedState: unmarshalled.userSelectedState,
+          fileType: unmarshalled.fileType,
+          fileSizeBytes: unmarshalled.fileSizeBytes
+        };
+      });
+
+      // Sort by upload timestamp (most recent first)
+      analyses.sort((a, b) => new Date(b.uploadTimestamp).getTime() - new Date(a.uploadTimestamp).getTime());
+    }
+
+    console.log(`Successfully processed ${analyses.length} lease analyses for user ${userId}`);
 
     return NextResponse.json({ 
       analyses,
@@ -90,10 +113,17 @@ export async function GET() {
 
   } catch (error) {
     console.error('Error fetching user lease analyses:', error);
+    console.error('Error details:', {
+      name: error instanceof Error ? error.name : 'Unknown',
+      message: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined
+    });
+    
     const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+    
     return NextResponse.json({ 
       error: 'Failed to fetch lease analyses', 
       details: errorMessage 
     }, { status: 500 });
   }
-} 
+}

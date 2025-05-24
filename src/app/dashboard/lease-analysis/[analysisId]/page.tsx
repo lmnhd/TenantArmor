@@ -1,14 +1,16 @@
 "use client";
 
 import { useState, useEffect, useCallback } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import ClauseCard from '../components/ClauseCard';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import type { LeaseAnalysis, AIAnalysisResults, Issue, NextStep, Clause } from '@/lib/types';
 import Link from 'next/link';
-import { ArrowLeft, Download, Printer, Flag, AlertTriangle, Info, CheckCircle2, RefreshCw, MessageCircle } from 'lucide-react';
+import { ArrowLeft, Download, Printer, Flag, AlertTriangle, Info, CheckCircle2, RefreshCw, MessageCircle, Zap, AlertCircle, Crown, ArrowRight, Shield } from 'lucide-react';
 import { ChatDrawer } from '../components/ChatDrawer';
+import { SubscriptionStatus } from '@/components/subscription/subscription-status';
+import { useAuthenticatedRouting } from '@/lib/utils/auth-routing';
 
 const POLLING_INTERVAL = 5000; // 5 seconds
 const MAX_POLLS = 360; // 5 seconds * 360 polls = 30 minutes
@@ -62,12 +64,40 @@ const processingStates: LeaseAnalysis['status'][] = [
 
 export default function LeaseAnalysisResultPage() {
   const params = useParams();
-  const analysisId = Array.isArray(params.analysisId) ? params.analysisId[0] : params.analysisId;
+  const analysisId = params.analysisId as string;
+  const router = useRouter();
+  const { routeToUpgrade } = useAuthenticatedRouting();
+  
   const [analysisData, setAnalysisData] = useState<LeaseAnalysis | null>(null);
+  const [analysisResults, setAnalysisResults] = useState<AIAnalysisResults | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pollingCount, setPollingCount] = useState(0);
-  const [downloadingPdf, setDownloadingPdf] = useState(false);
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [userSubscription, setUserSubscription] = useState<any>(null);
+  const [showUpgradePrompt, setShowUpgradePrompt] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+
+  // Fetch user subscription status
+  const fetchSubscriptionStatus = useCallback(async () => {
+    try {
+      const response = await fetch('/api/user/subscription');
+      if (response.ok) {
+        const data = await response.json();
+        setUserSubscription(data);
+      }
+    } catch (error) {
+      console.error('Error fetching subscription:', error);
+    }
+  }, []);
+
+  // Check if user has access to full report
+  const hasFullAccess = userSubscription?.plan === 'totally_secure' || 
+                       (userSubscription?.purchasedAnalyses && 
+                        userSubscription.purchasedAnalyses.includes(analysisId));
+
+  // Check if this is a preview mode
+  const isPreviewMode = !hasFullAccess;
 
   const fetchDataRef = useCallback(async (isPolling: boolean = false) => {
     if (!analysisId) {
@@ -91,6 +121,11 @@ export default function LeaseAnalysisResultPage() {
       const data: LeaseAnalysis = await response.json();
       setAnalysisData(data);
       
+      // Update analysisResults when we get new data
+      if (data.analysisResults) {
+        setAnalysisResults(data.analysisResults as AIAnalysisResults);
+      }
+      
       if (processingStates.includes(data.status) && pollingCount < MAX_POLLS) {
         // setTimeout is handled by useEffect dependency change
       } else if (pollingCount >= MAX_POLLS && processingStates.includes(data.status)) {
@@ -108,21 +143,37 @@ export default function LeaseAnalysisResultPage() {
   }, [analysisId, pollingCount]);
 
   useEffect(() => {
-    fetchDataRef();
-  }, [fetchDataRef]);
+    fetchSubscriptionStatus();
+  }, [fetchSubscriptionStatus]);
 
   useEffect(() => {
-    let timerId: NodeJS.Timeout;
-    if (analysisData) {
-        if (processingStates.includes(analysisData.status) && pollingCount < MAX_POLLS) {
-            timerId = setTimeout(() => {
-                setPollingCount(prev => prev + 1);
-                fetchDataRef(true); // Indicate it's a polling attempt
-            }, POLLING_INTERVAL);
-        }
+    if (analysisId) {
+      fetchDataRef(false);
     }
-    return () => clearTimeout(timerId);
-  }, [analysisData, pollingCount, fetchDataRef]);
+  }, [analysisId, fetchDataRef]);
+
+  useEffect(() => {
+    if (processingStates.includes(analysisData?.status as any)) {
+      setIsProcessing(true);
+      const interval = setInterval(() => {
+        setPollingCount(prevCount => {
+          const newCount = prevCount + 1;
+          if (newCount >= MAX_POLLS) {
+            clearInterval(interval);
+            setIsProcessing(false);
+            setError("Polling timed out. The analysis may still be in progress, but please check back later or contact support.");
+            return newCount;
+          }
+          fetchDataRef(true);
+          return newCount;
+        });
+      }, POLLING_INTERVAL);
+
+      return () => clearInterval(interval);
+    } else {
+      setIsProcessing(false);
+    }
+  }, [analysisData?.status, fetchDataRef]);
 
   const handleRetry = () => {
     fetchDataRef();
@@ -133,7 +184,7 @@ export default function LeaseAnalysisResultPage() {
       setError("S3 information is missing, cannot download PDF.");
       return;
     }
-    setDownloadingPdf(true);
+    setLoading(true);
     setError(null);
     try {
       const response = await fetch(`/api/get-download-url?id=${analysisId}`);
@@ -157,7 +208,7 @@ export default function LeaseAnalysisResultPage() {
       console.error("Error downloading PDF:", err);
       setError(err instanceof Error ? err.message : "Could not download the PDF.");
     } finally {
-      setDownloadingPdf(false);
+      setLoading(false);
     }
   };
 
@@ -199,10 +250,87 @@ export default function LeaseAnalysisResultPage() {
   }
 
   const { Icon: StatusIcon, color: statusColor, message: statusMessage } = getStatusVisuals(analysisData.status);
-  const analysisResults = analysisData.analysisResults as AIAnalysisResults | undefined;
-  const isProcessing = processingStates.includes(analysisData.status);
   const canDownload = !!(analysisData.s3Bucket && analysisData.s3Key);
   const showResults = (analysisData.status === 'ANALYSIS_COMPLETE' || analysisData.status === 'PARTIAL_ANALYSIS_INSIGHTS_FAILED') && analysisResults;
+
+  // Truncate summary for preview mode
+  const getPreviewSummary = (summary: string) => {
+    if (hasFullAccess) return summary;
+    const words = summary.split(' ');
+    return words.length > 50 ? words.slice(0, 50).join(' ') + '...' : summary;
+  };
+
+  // Count issues for preview
+  const getTotalIssuesCount = () => {
+    if (!analysisResults) return 0;
+    let count = 0;
+    if (analysisResults.criticalIssues) count += analysisResults.criticalIssues.length;
+    if (analysisResults.clauses) {
+      analysisResults.clauses.forEach(clause => {
+        count += clause.issues.length;
+      });
+    }
+    return count;
+  };
+
+  const UpgradePrompt = () => (
+    <Card className="border-primary bg-primary/5">
+      <CardHeader>
+        <CardTitle className="flex items-center">
+          <Zap className="h-5 w-5 mr-2 text-primary" />
+          Unlock Complete Lease Protection
+        </CardTitle>
+        <CardDescription>
+          Get complete access to all {analysisResults?.clauses?.length || 0} clause breakdowns, detailed recommendations, and actionable tenant protections.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid grid-cols-2 gap-4 text-sm">
+          <div>
+            <h4 className="font-semibold">What you're missing:</h4>
+            <ul className="text-muted-foreground mt-1 space-y-1">
+              <li>• {analysisResults?.clauses?.length || 0} detailed clause protections</li>
+              <li>• Complete actionable insights</li>
+              <li>• Full tenant rights analysis</li>
+              <li>• Download capability</li>
+              <li>• AI consultation session</li>
+            </ul>
+          </div>
+          <div>
+            <h4 className="font-semibold">Get instant protection:</h4>
+            <ul className="text-muted-foreground mt-1 space-y-1">
+              <li>• One-time purchase: $19</li>
+              <li>• Includes 1 AI consultation (2 days)</li>
+              <li>• No subscription required</li>
+              <li>• Immediate download</li>
+              <li>• Know exactly what you're signing</li>
+            </ul>
+          </div>
+        </div>
+        <div className="flex gap-2">
+          <Button 
+            onClick={() => handlePurchase(analysisId)}
+            className="flex-1"
+          >
+            Get Complete Analysis - $19
+          </Button>
+          <Button 
+            variant="outline"
+            onClick={() => window.open('/pricing', '_blank')}
+            className="flex-1"
+          >
+            View All Plans
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+
+  const handlePurchase = (analysisId: string) => {
+    // Route to pricing page with the analysis context
+    const currentPath = `/dashboard/lease-analysis/${analysisId}`;
+    routeToUpgrade(currentPath);
+  };
 
   return (
     <div className="space-y-8 print:space-y-4">
@@ -238,14 +366,10 @@ export default function LeaseAnalysisResultPage() {
             variant="outline" 
             size="sm" 
             onClick={handleDownloadPdf} 
-            disabled={!canDownload || downloadingPdf || isProcessing}
+            disabled={!canDownload || isProcessing}
           >
-            {downloadingPdf ? (
-              <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-            ) : (
             <Download className="h-4 w-4 mr-2" />
-            )}
-            {downloadingPdf ? 'Downloading...' : 'Download PDF'}
+            Download PDF
           </Button>
           <Button 
             variant="outline" 
@@ -320,7 +444,7 @@ export default function LeaseAnalysisResultPage() {
                 )}
               </CardHeader>
               <CardContent>
-                <p className="whitespace-pre-wrap">{analysisResults.summary}</p>
+                <p className="whitespace-pre-wrap">{getPreviewSummary(analysisResults.summary)}</p>
               </CardContent>
             </Card>
           )}
@@ -334,16 +458,28 @@ export default function LeaseAnalysisResultPage() {
                   Critical Issues Identified
                 </CardTitle>
                 <CardDescription>
-                  These are high-priority items that require immediate attention.
+                  {hasFullAccess 
+                    ? "These are high-priority items that require immediate attention."
+                    : `${analysisResults.criticalIssues.length} critical issues found. Upgrade to see details.`
+                  }
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
-                {analysisResults.criticalIssues.map((issue: Issue, index: number) => (
-                  <div key={index} className="p-3 bg-red-50 dark:bg-red-900/20 rounded-md">
-                    <p className="font-semibold text-red-700 dark:text-red-300">{issue.description}</p>
-                    {issue.recommendation && <p className="text-sm text-muted-foreground mt-1"><strong>Recommendation:</strong> {issue.recommendation}</p>}
+                {hasFullAccess ? (
+                  analysisResults.criticalIssues.map((issue: Issue, index: number) => (
+                    <div key={index} className="p-3 bg-red-50 dark:bg-red-900/20 rounded-md">
+                      <p className="font-semibold text-red-700 dark:text-red-300">{issue.description}</p>
+                      {issue.recommendation && <p className="text-sm text-muted-foreground mt-1"><strong>Recommendation:</strong> {issue.recommendation}</p>}
+                    </div>
+                  ))
+                ) : (
+                  <div className="p-3 bg-muted/50 rounded-md text-center">
+                    <p className="text-muted-foreground mb-2">🔒 Critical issues details are only available with full access</p>
+                    <Button size="sm" onClick={() => handlePurchase(analysisId)}>
+                      Unlock for $19
+                    </Button>
                   </div>
-                ))}
+                )}
               </CardContent>
             </Card>
           )}
@@ -353,27 +489,39 @@ export default function LeaseAnalysisResultPage() {
             <Card className="print:shadow-none print:border-none">
               <CardHeader>
                 <CardTitle>Actionable Insights & Next Steps</CardTitle>
-                {analysisResults.actionableInsights.overallRecommendation && (
+                {hasFullAccess && analysisResults.actionableInsights.overallRecommendation && (
                      <CardDescription>{analysisResults.actionableInsights.overallRecommendation}</CardDescription>
+                )}
+                {!hasFullAccess && (
+                     <CardDescription>Strategic recommendations and next steps require full access.</CardDescription>
                 )}
               </CardHeader>
               <CardContent className="space-y-4">
-                {analysisResults.actionableInsights.nextSteps && analysisResults.actionableInsights.nextSteps.length > 0 ? (
-                    analysisResults.actionableInsights.nextSteps.map((step: NextStep, index: number) => (
-                    <div key={index} className="p-3 border rounded-md dark:border-gray-700">
-                        <div className="flex justify-between items-start">
-                            <h4 className="font-semibold">{step.step}</h4>
-                            <span 
-                                className={`px-2 py-0.5 rounded-full text-xs font-medium ${getSeverityBadgeClass(step.importance)}`}
-                            >
-                                {step.importance}
-                            </span>
-                        </div>
-                        {step.details && <p className="text-sm text-muted-foreground mt-1 whitespace-pre-wrap">{step.details}</p>}
-                    </div>
-                    ))
+                {hasFullAccess ? (
+                  analysisResults.actionableInsights.nextSteps && analysisResults.actionableInsights.nextSteps.length > 0 ? (
+                      analysisResults.actionableInsights.nextSteps.map((step: NextStep, index: number) => (
+                      <div key={index} className="p-3 border rounded-md dark:border-gray-700">
+                          <div className="flex justify-between items-start">
+                              <h4 className="font-semibold">{step.step}</h4>
+                              <span 
+                                  className={`px-2 py-0.5 rounded-full text-xs font-medium ${getSeverityBadgeClass(step.importance)}`}
+                              >
+                                  {step.importance}
+                              </span>
+                          </div>
+                          {step.details && <p className="text-sm text-muted-foreground mt-1 whitespace-pre-wrap">{step.details}</p>}
+                      </div>
+                      ))
+                  ) : (
+                      <p className="text-muted-foreground">No specific next steps provided by the AI.</p>
+                  )
                 ) : (
-                    <p className="text-muted-foreground">No specific next steps provided by the AI.</p>
+                  <div className="p-3 bg-muted/50 rounded-md text-center">
+                    <p className="text-muted-foreground mb-2">🔒 Actionable insights available with full access</p>
+                    <Button size="sm" onClick={() => handlePurchase(analysisId)}>
+                      Get Full Analysis - $19
+                    </Button>
+                  </div>
                 )}
               </CardContent>
             </Card>
@@ -384,12 +532,60 @@ export default function LeaseAnalysisResultPage() {
             <Card className="print:shadow-none print:border-none">
               <CardHeader>
                 <CardTitle>Clause by Clause Breakdown</CardTitle>
-                <CardDescription>Detailed analysis of individual lease clauses.</CardDescription>
+                <CardDescription>
+                  {hasFullAccess 
+                    ? "Detailed analysis of individual lease clauses."
+                    : `${analysisResults.clauses.length} clauses analyzed. Full breakdown available with upgrade.`
+                  }
+                </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
-                {analysisResults.clauses.map((clause: Clause, index: number) => (
-                  <ClauseCard key={index} clause={clause} />
-                ))}
+                {hasFullAccess ? (
+                  analysisResults.clauses.map((clause: Clause, index: number) => (
+                    <ClauseCard key={index} clause={clause} />
+                  ))
+                ) : (
+                  <div className="space-y-4">
+                    {/* Show just the first clause as preview */}
+                    {analysisResults.clauses.slice(0, 1).map((clause: Clause, index: number) => (
+                      <div key={index} className="relative">
+                        <ClauseCard clause={clause} />
+                        <div className="absolute inset-0 bg-gradient-to-t from-white via-transparent to-transparent dark:from-gray-950"></div>
+                      </div>
+                    ))}
+                    
+                    {/* Locked clauses preview */}
+                    <div className="space-y-3">
+                      {analysisResults.clauses.slice(1, 4).map((clause: Clause, index: number) => (
+                        <div key={index} className="p-4 border rounded-lg bg-muted/30 relative">
+                          <div className="flex justify-between items-start mb-2">
+                            <h3 className="font-semibold text-muted-foreground">🔒 {clause.title}</h3>
+                            <span className="text-xs bg-muted px-2 py-1 rounded">
+                              {clause.issues.length} issues
+                            </span>
+                          </div>
+                          <p className="text-sm text-muted-foreground">
+                            "{clause.text.substring(0, 100)}..."
+                          </p>
+                        </div>
+                      ))}
+                      
+                      {analysisResults.clauses.length > 4 && (
+                        <div className="p-4 border rounded-lg bg-muted/30 text-center">
+                          <p className="text-muted-foreground">
+                            + {analysisResults.clauses.length - 4} more clauses to analyze
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                    
+                    <div className="text-center pt-4">
+                      <Button onClick={() => handlePurchase(analysisId)}>
+                        Unlock All {analysisResults.clauses.length} Clause Breakdowns - $19
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           )}
@@ -442,6 +638,11 @@ export default function LeaseAnalysisResultPage() {
             </div>
         </CardContent>
       </Card>
+
+      {/* Upgrade Prompt */}
+      {!hasFullAccess && (
+        <UpgradePrompt />
+      )}
 
     </div>
   );

@@ -1,12 +1,14 @@
 import { NextResponse } from 'next/server';
-import { DynamoDBClient, UpdateItemCommand, AttributeValue } from '@aws-sdk/client-dynamodb';
-import { marshall } from '@aws-sdk/util-dynamodb';
+import { DynamoDBClient, UpdateItemCommand, AttributeValue, GetItemCommand } from '@aws-sdk/client-dynamodb';
+import { marshall, unmarshall } from '@aws-sdk/util-dynamodb';
 import { SQSClient, SendMessageCommand } from '@aws-sdk/client-sqs';
+import { auth } from '@clerk/nextjs/server';
 // import OpenAI from 'openai'; // Ensures this line is commented out or removed
 
 // Initialize AWS Clients
 const awsRegion = process.env.AWS_REGION || 'us-east-1';
 const dynamoDbTableName = process.env.DYNAMODB_LEASE_ANALYSES_TABLE;
+const dynamoDbUsersTableName = process.env.DYNAMODB_USERS_TABLE || 'TenantArmor-Users';
 const aiProcessingQueueUrl = process.env.AI_PROCESSING_QUEUE_URL;
 
 let ddbClient: DynamoDBClient;
@@ -141,9 +143,132 @@ async function updateDynamoDBStatus(analysisId: string, status: string, results?
   }
 }
 
+async function checkUserSubscription(userId: string): Promise<{ canProceed: boolean; plan: string; usageCount: any; usageLimits: any }> {
+  try {
+    const result = await ddbClient.send(new GetItemCommand({
+      TableName: dynamoDbUsersTableName,
+      Key: { userId: { S: userId } }
+    }));
+
+    if (result.Item) {
+      const user = unmarshall(result.Item);
+      let plan = 'free'
+      
+      // Determine plan based on subscription status
+      if (user.subscriptionStatus === 'active') {
+        // With new pricing model, all active subscriptions are "totally_secure"
+        plan = 'totally_secure'
+      }
+      
+      const usageCount = user.usageCount || { 
+        leaseAnalyses: 0, 
+        evictionAnalyses: 0, 
+        aiConsultations: 0,
+        totalAnalyses: 0
+      };
+      
+      const usageLimits = {
+        free: { 
+          totalAnalyses: -1, // Free users can initiate unlimited analyses (get previews)
+          leaseAnalyses: -1, 
+          evictionAnalyses: -1, 
+          aiConsultations: 0  // No AI consultations on free
+        },
+        totally_secure: { 
+          totalAnalyses: -1, // Unlimited
+          leaseAnalyses: -1, 
+          evictionAnalyses: -1, 
+          aiConsultations: -1 // All unlimited
+        }
+      };
+
+      // Free users can always proceed (they get preview results)
+      // Totally Secure users can always proceed (they get full results)
+      return { canProceed: true, plan, usageCount, usageLimits };
+    } else {
+      // New user, default to free plan
+      return { 
+        canProceed: true, 
+        plan: 'free', 
+        usageCount: { 
+          leaseAnalyses: 0, 
+          evictionAnalyses: 0, 
+          aiConsultations: 0,
+          totalAnalyses: 0
+        },
+        usageLimits: {
+          free: { 
+            totalAnalyses: -1, // Free users can initiate unlimited analyses (get previews)
+            leaseAnalyses: -1, 
+            evictionAnalyses: -1, 
+            aiConsultations: 0 // No AI consultations on free
+          },
+          totally_secure: { 
+            totalAnalyses: -1, // Unlimited
+            leaseAnalyses: -1, 
+            evictionAnalyses: -1, 
+            aiConsultations: -1 // All unlimited
+          }
+        }
+      };
+    }
+  } catch (error) {
+    console.error('Error checking subscription:', error);
+    // Default to allowing on error (graceful degradation)
+    return { 
+      canProceed: true, 
+      plan: 'free', 
+      usageCount: { 
+        leaseAnalyses: 0, 
+        evictionAnalyses: 0, 
+        aiConsultations: 0,
+        totalAnalyses: 0
+      },
+      usageLimits: {
+        free: { 
+          totalAnalyses: -1, // Free users can initiate unlimited analyses (get previews)
+          leaseAnalyses: -1, 
+          evictionAnalyses: -1, 
+          aiConsultations: 0 // No AI consultations on free
+        },
+        totally_secure: { 
+          totalAnalyses: -1, // Unlimited
+          leaseAnalyses: -1, 
+          evictionAnalyses: -1, 
+          aiConsultations: -1 // All unlimited
+        }
+      }
+    };
+  }
+}
+
 export async function POST(request: Request) {
   // console.log('API /api/ai/initiate-lease-analysis POST request received - TEST EDIT.'); // Removed test log
   console.log('API /api/ai/initiate-lease-analysis POST request received.');
+
+  // 1. Authenticate user with Clerk
+  try {
+    const { userId } = await auth();
+    if (!userId) {
+      return NextResponse.json({ error: 'Unauthorized. Please sign in to analyze leases.' }, { status: 401 });
+    }
+
+    // 2. Check user subscription and usage limits
+    const subscriptionCheck = await checkUserSubscription(userId);
+    if (!subscriptionCheck.canProceed) {
+      return NextResponse.json({ 
+        error: 'Usage limit exceeded. Please upgrade your plan to continue.',
+        plan: subscriptionCheck.plan,
+        usageCount: subscriptionCheck.usageCount,
+        usageLimits: subscriptionCheck.usageLimits
+      }, { status: 403 });
+    }
+
+    console.log(`User ${userId} authorized with plan: ${subscriptionCheck.plan}`);
+  } catch (authError) {
+    console.error('Authentication error:', authError);
+    return NextResponse.json({ error: 'Authentication failed' }, { status: 401 });
+  }
 
   if (!ddbClient || !dynamoDbTableName) {
     console.error('DynamoDB client or table name not configured.');

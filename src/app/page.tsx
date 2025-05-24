@@ -1,5 +1,8 @@
+"use client"
+
 import Link from 'next/link';
 import Image from 'next/image';
+import { useAuthenticatedRouting } from '@/lib/utils/auth-routing';
 
 // Placeholder for icons
 const PlaceholderIcon = ({ className }: { className?: string }) => <span className={`inline-block h-5 w-5 ${className}`}></span>;
@@ -49,29 +52,14 @@ const UnsplashImage = ({
 );
 
 export default function LandingPage() {
+  const { routeToPricing } = useAuthenticatedRouting();
+
   return (
     <div className="min-h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
-      {/* Header/Navigation */}
-      <header className="py-4 px-6 md:px-10 shadow-md bg-white dark:bg-gray-800">
-        <div className="container mx-auto flex justify-between items-center">
-          <Link href="/" className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-            TenantArmor
-          </Link>
-          <nav className="space-x-4">
-            {/* Placeholder Nav Links */}
-            <Link href="#services" className="text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400">Services</Link>
-            <Link href="/dashboard/login" className="text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400">Login</Link>
-            <Link href="/dashboard/signup" className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition">
-              Sign Up
-            </Link>
-          </nav>
-        </div>
-      </header>
-
       {/* Main Content */}
       <main className="flex-grow">
         {/* Hero Section */}
-        <section className="py-20 md:py-32 bg-gradient-to-b from-white dark:from-gray-800 to-gray-100 dark:to-gray-800/80 text-center relative">
+        <section className="py-20 md:py-32 bg-gradient-to-b from-white dark:from-gray-800 to-gray-100 dark:to-gray-800/80 text-center relative overflow-hidden">
           {/* Hero Background Image */}
           <div className="absolute inset-0 z-0 opacity-20">
             <UnsplashImage
@@ -82,16 +70,31 @@ export default function LandingPage() {
               className="w-full h-full"
             />
           </div>
+          
+          {/* Logo Shadow Overlay */}
+          <div className="absolute inset-0 z-5 flex items-center justify-center opacity-15">
+            <Image 
+              src="/TenantArmor-NoText.svg" 
+              alt="TenantArmor Logo Background" 
+              width={400} 
+              height={400}
+              className="h-96 w-96 text-gray-600 dark:text-gray-300"
+            />
+          </div>
+          
           <div className="container mx-auto px-6 relative z-10">
             <h1 className="text-4xl md:text-5xl font-extrabold text-gray-800 dark:text-white mb-6">
-              Empowering Tenants with Clear Legal Insights.
+              Defend Your Rights with the Intelligence of Tomorrow
             </h1>
             <p className="text-lg md:text-xl text-gray-600 dark:text-gray-300 mb-10 max-w-2xl mx-auto">
-              TenantArmor helps you understand your lease and navigate tenant rights with AI-powered analysis and resources.
+              TenantArmor harnesses the power of AI to help you understand your lease, fight evictions, and guide you through every tenant challenge with intelligent insights.
             </p>
-            <Link href="/dashboard/signup" className="px-8 py-4 bg-blue-600 text-white text-lg font-semibold rounded-lg hover:bg-blue-700 transition shadow-lg">
+            <button 
+              onClick={() => routeToPricing()}
+              className="px-8 py-4 bg-blue-600 text-white text-lg font-semibold rounded-lg hover:bg-blue-700 transition shadow-lg"
+            >
               Get Started Free
-            </Link>
+            </button>
           </div>
         </section>
 

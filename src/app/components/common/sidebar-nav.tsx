@@ -8,7 +8,8 @@ import {
   FileText, 
   ShieldAlert, 
   Settings, 
-  LifeBuoy 
+  LifeBuoy,
+  Crown
 } from "lucide-react";
 
 const navItems = [
@@ -26,6 +27,11 @@ const navItems = [
     href: "/dashboard/eviction-response",
     label: "Eviction Response",
     icon: <ShieldAlert className="h-4 w-4" />,
+  },
+  {
+    href: "/pricing",
+    label: "Pricing & Plans",
+    icon: <Crown className="h-4 w-4" />,
   },
   {
     href: "/dashboard/settings",
