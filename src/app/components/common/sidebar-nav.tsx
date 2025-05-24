@@ -45,8 +45,19 @@ const navItems = [
   },
 ];
 
-export default function SidebarNav() {
+interface SidebarNavProps {
+  onNavigate?: () => void;
+}
+
+export default function SidebarNav({ onNavigate }: SidebarNavProps) {
   const pathname = usePathname();
+
+  const handleClick = () => {
+    // Close sidebar on mobile when navigating
+    if (onNavigate) {
+      onNavigate();
+    }
+  };
 
   return (
     <nav className="mt-6 space-y-1">
@@ -54,6 +65,7 @@ export default function SidebarNav() {
         <Link
           key={item.href}
           href={item.href}
+          onClick={handleClick}
           className={cn(
             "flex items-center px-4 py-2 rounded-lg transition-colors",
             pathname === item.href
